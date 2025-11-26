@@ -1,59 +1,55 @@
 # embeddings.py
-# Lightweight embedding engine using HuggingFace transformers
+# Embedding engine using pure HuggingFace Transformers (no sentence-transformers)
 
 import torch
-from transformers import AutoTokenizer, AutoModel
 import numpy as np
+from transformers import AutoTokenizer, AutoModel
 
 
 class EmbeddingEngine:
     """
-    Embedding engine using HuggingFace MiniLM model without sentence_transformers.
+    Generates embeddings using a lightweight HuggingFace model.
     """
 
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "distilbert-base-uncased"):
         """
-        Load tokenizer + model.
+        Loads tokenizer + model.
         """
         print(f"[EmbeddingEngine] Loading HF model: {model_name} ...")
+        self.device = torch.device("cpu")
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
-        print("[EmbeddingEngine] Model loaded successfully (HF).")
+        self.model.to(self.device)
+        self.model.eval()
 
-    def _mean_pool(self, model_output, attention_mask):
-        """
-        Mean Pooling - take attention mask into account.
-        """
-        token_embeddings = model_output[0]  # First element is the token embeddings
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(
-            input_mask_expanded.sum(1), min=1e-9
-        )
+        print("[EmbeddingEngine] Model loaded successfully.")
 
     def encode(self, sentences):
         """
-        Encode a list of sentences into embeddings.
+        Generate embeddings using mean pooling.
         """
         if not isinstance(sentences, list):
             raise ValueError("Input must be a list of sentences.")
 
-        encoded_input = self.tokenizer(
-            sentences,
-            padding=True,
-            truncation=True,
-            return_tensors="pt"
-        )
+        inputs = self.tokenizer(
+            sentences, return_tensors="pt", padding=True, truncation=True
+        ).to(self.device)
 
         with torch.no_grad():
-            model_output = self.model(**encoded_input)
+            outputs = self.model(**inputs)
 
-        embeddings = self._mean_pool(model_output, encoded_input['attention_mask'])
-        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+        # Mean pooling
+        embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()
 
-        return embeddings.cpu().numpy()
+        # Normalize embeddings
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        embeddings = embeddings / norms
+
+        return embeddings
 
     def encode_single(self, sentence: str):
         """
-        Encode a single sentence.
+        Encode one sentence.
         """
         return self.encode([sentence])[0]
