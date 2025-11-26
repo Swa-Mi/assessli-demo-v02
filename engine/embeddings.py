@@ -1,55 +1,36 @@
 # embeddings.py
-# Embedding engine using pure HuggingFace Transformers (no sentence-transformers)
+# Lightweight embedding engine that works on Streamlit Cloud (NO PyTorch)
 
-import torch
+from sentence_transformers import SentenceTransformer
 import numpy as np
-from transformers import AutoTokenizer, AutoModel
 
 
 class EmbeddingEngine:
     """
-    Generates embeddings using a lightweight HuggingFace model.
+    Generates sentence embeddings using the lightweight MiniLM model.
     """
 
-    def __init__(self, model_name: str = "distilbert-base-uncased"):
-        """
-        Loads tokenizer + model.
-        """
-        print(f"[EmbeddingEngine] Loading HF model: {model_name} ...")
-        self.device = torch.device("cpu")
-
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
-        self.model.to(self.device)
-        self.model.eval()
-
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
+        print(f"[EmbeddingEngine] Loading model (CPU-friendly): {model_name}")
+        self.model = SentenceTransformer(model_name)
         print("[EmbeddingEngine] Model loaded successfully.")
 
     def encode(self, sentences):
         """
-        Generate embeddings using mean pooling.
+        Encodes a list of sentences.
         """
         if not isinstance(sentences, list):
             raise ValueError("Input must be a list of sentences.")
 
-        inputs = self.tokenizer(
-            sentences, return_tensors="pt", padding=True, truncation=True
-        ).to(self.device)
-
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-
-        # Mean pooling
-        embeddings = outputs.last_hidden_state.mean(dim=1).cpu().numpy()
-
-        # Normalize embeddings
-        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-        embeddings = embeddings / norms
-
+        embeddings = self.model.encode(
+            sentences,
+            normalize_embeddings=True,
+            convert_to_numpy=True  # Ensures numpy output
+        )
         return embeddings
 
     def encode_single(self, sentence: str):
         """
-        Encode one sentence.
+        Encodes a single sentence.
         """
         return self.encode([sentence])[0]
