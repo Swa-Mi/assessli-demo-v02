@@ -184,35 +184,56 @@ if run_button:
                         st.write("•", s)
                 st.markdown("---")
 
-            # -----------------------------
-            # Downloads
-            # -----------------------------
-            st.subheader("Downloads")
-            st.download_button(
-                "Download CSV",
-                df_out.to_csv(index=False).encode("utf-8"),
-                "assessli_behavior_map.csv",
-                "text/csv",
-            )
+# -----------------------------
+# Downloads
+# -----------------------------
+st.subheader("Downloads")
 
-            png_buf = BytesIO()
-            fig.write_image(png_buf, format="png")
-            st.download_button(
-                "Download Map (PNG)",
-                png_buf.getvalue(),
-                "assessli_behavior_map.png",
-                "image/png",
-            )
+# CSV download (safe)
+st.download_button(
+    "Download CSV",
+    df_out.to_csv(index=False).encode("utf-8"),
+    "assessli_behavior_map.csv",
+    "text/csv",
+)
 
-            # Save locally
-            out_dir = "/mnt/data/assessli_v02_outputs"
-            os.makedirs(out_dir, exist_ok=True)
-            df_out.to_csv(os.path.join(
-                out_dir, "behavior_map.csv"), index=False)
-            with open(os.path.join(out_dir, "behavior_map.png"), "wb") as f:
-                f.write(png_buf.getvalue())
+# -----------------------------
+# Safe PNG export
+# -----------------------------
+png_data = None
+try:
+    # Try generating PNG using Plotly -> requires Kaleido
+    png_data = fig.to_image(format="png")
+except Exception as e:
+    st.warning(
+        "PNG export is unavailable in this environment (Kaleido missing). "
+        "You can still screenshot the map above."
+    )
 
-            st.success(f"Saved files under `{out_dir}`")
+# PNG download button only if successful
+if png_data:
+    st.download_button(
+        "Download Map (PNG)",
+        png_data,
+        "assessli_behavior_map.png",
+        "image/png",
+    )
+
+# -----------------------------
+# Safe local save (only if PNG exists)
+# -----------------------------
+out_dir = "/mnt/data/assessli_v02_outputs"
+os.makedirs(out_dir, exist_ok=True)
+
+# Save CSV always
+df_out.to_csv(os.path.join(out_dir, "behavior_map.csv"), index=False)
+
+# Save PNG only if available
+if png_data:
+    with open(os.path.join(out_dir, "behavior_map.png"), "wb") as f:
+        f.write(png_data)
+
+st.success(f"Saved files under `{out_dir}`")
 
 # -----------------------------
 # Footer
