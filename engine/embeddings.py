@@ -1,34 +1,34 @@
 # embeddings.py
-# Lightweight ONNX-based embedding engine for Streamlit Cloud
+# Lightweight embedding engine using TF-IDF (Streamlit Cloud compatible)
 
-from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
 
 class EmbeddingEngine:
     """
-    Fast, lightweight embedding engine using an ONNX-optimized MiniLM model.
-    Works on Streamlit Cloud (torch not required).
+    Simple TF-IDF embedding engine fully compatible with Streamlit Cloud.
     """
 
-    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2"):
-        print(f"[EmbeddingEngine] Loading ONNX model: {model_name}")
-        self.model = SentenceTransformer(
-            model_name,
-            device="cpu",
-            use_auth_token=None
+    def __init__(self):
+        self.vectorizer = TfidfVectorizer(
+            stop_words="english",
+            max_features=5000  # adjust depending on dataset size
         )
-        print("[EmbeddingEngine] Model loaded successfully (ONNX).")
 
-    def encode(self, sentences):
-        if not isinstance(sentences, list):
-            raise ValueError("Input must be a list of strings.")
-        
-        embeddings = self.model.encode(
-            sentences,
-            normalize_embeddings=True,
-            convert_to_numpy=True
-        )
+    def fit(self, texts):
+        """
+        Fit vectorizer to dataset.
+        """
+        self.vectorizer.fit(texts)
+
+    def encode(self, texts):
+        """
+        Transform list of sentences into TF-IDF vectors.
+        """
+        if not isinstance(texts, list):
+            raise ValueError("Input must be a list of sentences.")
+        embeddings = self.vectorizer.transform(texts).toarray()
         return embeddings
 
-    def encode_single(self, sentence: str):
-        return self.encode([sentence])[0]
+    def encode_single(self, text: str):
+        return self.encode([text])[0]
