@@ -218,19 +218,22 @@ if png_data:
         "assessli_behavior_map.png",
         "image/png",
     )
+# -----------------------------
+# Safe local save (Streamlit Cloud compatible)
+# -----------------------------
 
-# -----------------------------
-# Safe local save (only if PNG exists)
-# -----------------------------
-out_dir = "/mnt/data/assessli_v02_outputs"
+# Streamlit Cloud writable directory
+out_dir = "/mount/data/assessli_v02_outputs"
 os.makedirs(out_dir, exist_ok=True)
 
-# Save CSV always
-df_out.to_csv(os.path.join(out_dir, "behavior_map.csv"), index=False)
+# Always save CSV
+csv_path = os.path.join(out_dir, "behavior_map.csv")
+df_out.to_csv(csv_path, index=False)
 
-# Save PNG only if available
+# Save PNG only if it exists
 if png_data:
-    with open(os.path.join(out_dir, "behavior_map.png"), "wb") as f:
+    png_path = os.path.join(out_dir, "behavior_map.png")
+    with open(png_path, "wb") as f:
         f.write(png_data)
 
 st.success(f"Saved files under `{out_dir}`")
