@@ -35,7 +35,7 @@ st.set_page_config(
 st.title("Assessli — Behavior Map (v0.2, KMeans Version)")
 st.caption("Pipeline: SentenceEmbeddings (MiniLM) → UMAP → KMeans → Persona cards")
 
-# Optional header image
+# Optional header
 DEMO_HEADER_IMAGE = "/mnt/data/1000086665.jpg"
 if os.path.exists(DEMO_HEADER_IMAGE):
     st.image(DEMO_HEADER_IMAGE, use_column_width=True)
@@ -44,7 +44,7 @@ if os.path.exists(DEMO_HEADER_IMAGE):
 col1, col2 = st.columns([1, 2])
 
 # -----------------------------
-# LEFT PANEL – INPUT + SETTINGS
+# LEFT PANEL – INPUT
 # -----------------------------
 with col1:
     st.header("Input")
@@ -72,17 +72,13 @@ with col1:
     st.header("Engine Settings (v0.2 KMeans)")
     n_neighbors = st.slider("UMAP: n_neighbors", 5, 50, 15)
     min_dist = st.slider("UMAP: min_dist", 0.0, 0.99, 0.1, step=0.05)
-    num_clusters = st.slider(
-        "KMeans: Number of clusters", min_value=2, max_value=10, value=3
-    )
+    num_clusters = st.slider("KMeans: Number of clusters", 2, 10, 3)
 
     run_button = st.button("Generate Behavior Map")
 
 # -----------------------------
 # Utility
 # -----------------------------
-
-
 def load_statements(text_input, uploaded_file):
     if uploaded_file is not None:
         try:
@@ -97,17 +93,21 @@ def load_statements(text_input, uploaded_file):
     else:
         return [l.strip() for l in text_input.splitlines() if l.strip()]
 
-
-# -----------------------------
-# RIGHT PANEL – OUTPUT PLACEHOLDER
-# -----------------------------
+# --------------------------------------------------------
+# RIGHT PANEL DEFAULT
+# --------------------------------------------------------
 with col2:
     st.header("Preview / Outputs")
     st.info("Run the engine to see results here.")
 
-# -----------------------------
+# --------------------------------------------------------
 # MAIN PIPELINE
-# -----------------------------
+# --------------------------------------------------------
+df_out = None
+fig = None
+personas = None
+clusters = None
+
 if run_button:
     statements = load_statements(text_input, uploaded_file)
 
@@ -118,25 +118,22 @@ if run_button:
         with st.spinner("Loading embedding model (MiniLM)..."):
             embedder = EmbeddingEngine()
             embedder.fit(statements)
-
             embeddings = embedder.encode(statements)
 
-        # UMAP reduction
+        # Dense conversion for UMAP
+        if hasattr(embeddings, "toarray"):
+            embeddings = embeddings.toarray()
+
+        # UMAP
         reducer = UMAPReducer(
             n_neighbors=n_neighbors,
             min_dist=min_dist,
             n_components=2
         )
-
-        # Convert embeddings to dense if sparse to avoid eigsh error
-        if hasattr(embeddings, "toarray"):
-            embeddings = embeddings.toarray()
-
         coords = reducer.fit_transform(embeddings)
 
-        # KMeans clustering
+        # KMeans
         clusterer = ClusterEngine()
-        # pass clusters as positional arg
         labels = clusterer.fit(coords)
         clusters = clusterer.get_cluster_dict(statements, labels)
 
@@ -144,7 +141,7 @@ if run_button:
         persona_gen = PersonaGenerator()
         personas = persona_gen.generate_personas(clusters)
 
-        # Output dataframe
+        # Output DataFrame
         df_out = pd.DataFrame({
             "statement": statements,
             "x": coords[:, 0],
@@ -152,9 +149,7 @@ if run_button:
             "cluster": labels
         })
 
-        # -----------------------------
         # Visualization
-        # -----------------------------
         fig = px.scatter(
             df_out,
             x="x",
@@ -184,58 +179,51 @@ if run_button:
                         st.write("•", s)
                 st.markdown("---")
 
-# -----------------------------
-# Downloads
-# -----------------------------
+# --------------------------------------------------------
+# DOWNLOADS — Safe (only show if df_out exists)
+# --------------------------------------------------------
 st.subheader("Downloads")
 
-# CSV download (safe)
-st.download_button(
-    "Download CSV",
-    df_out.to_csv(index=False).encode("utf-8"),
-    "assessli_behavior_map.csv",
-    "text/csv",
-)
-
-# -----------------------------
-# Safe PNG export
-# -----------------------------
-png_data = None
-try:
-    # Try generating PNG using Plotly -> requires Kaleido
-    png_data = fig.to_image(format="png")
-except Exception as e:
-    st.warning(
-        "PNG export is unavailable in this environment (Kaleido missing). "
-        "You can still screenshot the map above."
-    )
-
-# PNG download button only if successful
-if png_data:
+if df_out is None:
+    st.info("Run the engine to enable downloads.")
+else:
+    # CSV Download
     st.download_button(
-        "Download Map (PNG)",
-        png_data,
-        "assessli_behavior_map.png",
-        "image/png",
+        "Download CSV",
+        df_out.to_csv(index=False).encode("utf-8"),
+        "assessli_behavior_map.csv",
+        "text/csv",
     )
-# -----------------------------
-# Safe local save (always works)
-# -----------------------------
-out_dir = "/tmp/assessli_v02_outputs"
-os.makedirs(out_dir, exist_ok=True)
 
-# Save CSV always
-csv_path = os.path.join(out_dir, "behavior_map.csv")
-df_out.to_csv(csv_path, index=False)
+    # PNG Export (Safe)
+    png_data = None
+    if fig is not None:
+        try:
+            png_data = fig.to_image(format="png")
+        except Exception:
+            st.warning(
+                "PNG export unavailable (Kaleido missing). "
+                "You can still screenshot the map above."
+            )
 
-# Save PNG only if available
-if png_data:
-    png_path = os.path.join(out_dir, "behavior_map.png")
-    with open(png_path, "wb") as f:
-        f.write(png_data)
+    if png_data:
+        st.download_button(
+            "Download Map (PNG)",
+            png_data,
+            "assessli_behavior_map.png",
+            "image/png",
+        )
 
-st.success(f"Saved files under `{out_dir}` (temporary storage)")
+    # Local save
+    out_dir = "/tmp/assessli_v02_outputs"
+    os.makedirs(out_dir, exist_ok=True)
 
+    df_out.to_csv(os.path.join(out_dir, "behavior_map.csv"), index=False)
+    if png_data:
+        with open(os.path.join(out_dir, "behavior_map.png"), "wb") as f:
+            f.write(png_data)
+
+    st.success(f"Saved files under `{out_dir}`")
 
 # -----------------------------
 # Footer
