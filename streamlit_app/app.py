@@ -117,6 +117,7 @@ if run_button:
         # Embeddings
         with st.spinner("Loading embedding model (MiniLM)..."):
             embedder = EmbeddingEngine()
+            embedder.fit(statements)
 
             embeddings = embedder.encode(statements)
 
