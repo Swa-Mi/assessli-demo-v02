@@ -116,9 +116,8 @@ if run_button:
     else:
         # Embeddings
         with st.spinner("Loading embedding model (MiniLM)..."):
-            embedder = EmbeddingEngine(
-                model_name="sentence-transformers/all-MiniLM-L6-v2"
-            )
+            embedder = EmbeddingEngine()
+
             embeddings = embedder.encode(statements)
 
         # UMAP reduction
